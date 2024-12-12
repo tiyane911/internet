@@ -1,0 +1,132 @@
+def validate_ip(ip):
+    sections = ip.split('.')
+    if len(sections) != 4:
+        return False
+    for word in sections:
+        if not (0 <= int(word) <= 255):
+            return False
+    return True
+
+def create_server(servers, server, ip):
+    if not validate_ip(ip):
+        print("Invalid IP address")
+        return servers
+    if server in servers:
+        print("Server already exists")
+        return servers
+    if any(servers[s]['ip'] == ip for s in servers):
+        print("IP address already in use")
+        return servers
+    servers[server] = {'ip': ip, 'connections': []}
+    return servers
+
+def create_connection(servers, server_1, server_2, connect_time):
+    if server_1 not in servers or server_2 not in servers:
+        print("One or both servers do not exist")
+        return servers
+    if any(conn.get(server_2) for conn in servers[server_1]['connections']):
+        print("Connection already exists")
+        return servers
+    servers[server_1]['connections'].append({server_2: int(connect_time)})
+    servers[server_2]['connections'].append({server_1: int(connect_time)})
+    return servers
+
+def set_server(current, servers, server):
+    if server in servers:
+        return server
+    print("Server not found")
+    return current
+
+def ping(current, servers, target):
+    if current not in servers:
+        return -1
+    if target not in servers:
+        return -1
+    return ping_rec(target, servers, 0, current, set())
+
+def ping_rec(target, servers, time, current, visited):
+    if current == target:
+        return time
+    visited.add(current)
+    for conn in servers[current]['connections']:
+        for next_server, conn_time in conn.items():
+            if next_server not in visited:
+                result = ping_rec(target, servers, time + conn_time, next_server, visited)
+                if result != -1:
+                    return result
+    return -1
+
+def tracert(current, servers, target):
+    if current not in servers:
+        return "No current server set"
+    if target not in servers:
+        return "Target server not found"
+    path = []
+    time = tracert_rec(target, servers, 0, current, list(), path, 0)
+    if time == -1:
+        return "No path found"
+    return '\n'.join(path) + "\nTrace complete"
+
+def tracert_rec(target, servers, time, current, visited, path, idx):
+    """Recursive function to trace the route."""
+    if current == target:
+        path.append(f"{idx} {current} [{servers[current]['ip']}] Time: {time}ms")
+        return time
+    visited.append(current)
+    for conn in servers[current]['connections']:
+        for next_server, conn_time in conn.items():
+            if next_server not in visited:
+                path.append(f"{idx} {current} [{servers[current]['ip']}] Time: {time}ms")
+                result = tracert_rec(target, servers, time + conn_time, next_server, visited, path, idx+1)
+                if result != -1:
+                    return result
+    return -1
+
+def ipconfig(current, servers):
+    if current in servers:
+        print(f"{current}\t{servers[current]['ip']}")
+    else:
+        print("No current server set")
+
+def display_servers(servers):
+    for server, data in servers.items():
+        print(f"{server}\t{data['ip']}")
+        for conn in data['connections']:
+            for name, time in conn.items():
+                print(f"\t{name}\t{servers[name]['ip']}\tTime: {time}ms")
+
+def parse(command, servers, current):
+    commands = command.split()
+    if commands[0] == 'create-server':
+        servers = create_server(servers, commands[1], commands[2])
+    elif commands[0] == 'create-connection':
+        servers = create_connection(servers, commands[1], commands[2], commands[3])
+    elif commands[0] == 'set-server':
+        current = set_server(current, servers, commands[1])
+    elif commands[0] == 'ping':
+        time = ping(current, servers, commands[1])
+        if time == -1:
+            print("Ping failed")
+        else:
+            print(f"Reply from {commands[1]}: Time={time}ms")
+    elif commands[0] == 'traceroute':
+        print(tracert(current, servers, commands[1]))
+    elif commands[0] == 'display-servers':
+        display_servers(servers)
+    elif commands[0] == 'ipconfig':
+        ipconfig(current, servers)
+    else:
+        print("Invalid command")
+    return servers, current
+
+def run_internet():
+    servers = {}
+    current = ''
+    inp = input(">> ")
+    while inp != 'quit':
+        servers, current = parse(inp, servers, current)
+        inp = input(">> ")
+
+
+if __name__ == '__main__':
+    run_internet()
